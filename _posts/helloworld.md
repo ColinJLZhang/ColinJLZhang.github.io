@@ -1,0 +1,14 @@
+---
+layout:     post
+title:      42.0
+subtitle:   Hello world
+date:       2018-11-14
+author:     BY
+header-img: img/post-bg-ios9-web.jpg
+catalog: true
+tags:
+    - None
+---
+
+#Hello world 
+My name is Colin
