@@ -13,7 +13,7 @@ tags:
 
 #  “Domain's DNS record could not be retrieved”解决方法
 如果你遇到上述问题，检查看看你的解析有没有如下三条设置，没有的话请加上：
-
+     
 @         A             192.30.252.153
 
 @         A             192.30.252.154
