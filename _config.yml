@@ -1,11 +1,11 @@
 # Site settings
-title: BY Blog
-SEOTitle: 柏荧的博客 | BY Blog
+title: 42
+SEOTitle: 加林的博客 | BY Blog
 header-img: img/post-bg-desk.jpg
-email: qiubaiying@gmail.com
-description: "Every failure is leading towards success."
-keyword: "BY, BY Blog, 柏荧的博客, qiubaiying, 邱柏荧, iOS, Apple, iPhone"
-url: "http://qiubaiying.github.io"          # your host, for absolute URL
+email: colinzhang@applecore.cc
+description: "Stay hungry Stay foolish。"
+keyword: "PYTHON, Computer Vision, 加林的博客, SF"
+url: "http://colinjlzhang.github.io"          # your host, for absolute URL
 baseurl: ""      # for example, '/blog' if your blog hosted on 'host/blog'
 github_repo: "https://github.com/qiubaiying/qiubaiying.github.io.git" # you code repository
 
@@ -19,10 +19,10 @@ sidebar-avatar: /img/about-BY-gentle.jpg      # use absolute URL, seeing it's us
 # SNS settings
 RSS: false
 # weibo_username:     qiubaiying
-zhihu_username:     qiubaiying
-github_username:    qiubaiying
-facebook_username:  baiying.qiu.7
-jianshu_username:   e71990ada2fd
+#zhihu_username:     qiubaiying
+github_username:    colinjlzhang
+#facebook_username:  
+#jianshu_username:   e71990ada2fd
 #twitter_username:   qiubaiying
 
 
@@ -56,8 +56,8 @@ kramdown:
 
 
 # 评论系统
-# Disqus（https://disqus.com/）
-# disqus_username: qiubaiying
+Disqus（https://disqus.com/）
+disqus_username: mrobotor
 
 # Gitalk
 gitalk:
@@ -77,8 +77,8 @@ gitalk:
 ba_track_id: b50bf2b12b5338a1845e33832976fd68
 
 # Google Analytics
-ga_track_id: 'UA-90855596-1'            # Format: UA-xxxxxx-xx
-ga_domain: qiubaiying.top               # 默认的是 auto, 这里我是自定义了的域名，你如果没有自己的域名，需要改成auto
+ga_track_id: 'UA-129188577-1'            # Format: UA-xxxxxx-xx
+ga_domain: auto              # 默认的是 auto, 这里我是自定义了的域名，你如果没有自己的域名，需要改成auto
 
 
 
@@ -99,17 +99,17 @@ service-worker: true
 # Friends
 friends: [
     {
-        title: "WY",
-        href: "http://zhengwuyang.com"
+        title: "dl",
+        href: "http://darklunar.ml"
     },{
-        title: "简书·BY",
-        href: "http://www.jianshu.com/u/e71990ada2fd"
+        title: "numpy",
+        href: "https://docs.scipy.org/doc/numpy-1.15.1/reference/index.html"
     },{
-        title: "Apple",
-        href: "https://apple.com"
+        title: "Google",
+        href: "https://google.com"
     },{
-        title: "Apple Developer",
-        href: "https://developer.apple.com/"
+        title: "Python",
+        href: "https://www.python.org/"
     }
 ]
 
