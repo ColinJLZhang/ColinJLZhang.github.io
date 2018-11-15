@@ -12,19 +12,6 @@ tags:
     - computervision
     
 ---
-
-<head>
-    <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script>
-    <script type="text/x-mathjax-config">
-        MathJax.Hub.Config({
-            tex2jax: {
-            skipTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
-            inlineMath: [['$','$']]
-            }
-        });
-    </script>
-</head>
-
 1. Klaser A, Marszałek M, Schmid C. A spatio-temporal descriptor based on 3d-gradients[C]//BMVC 20OmniMarkupPreviewer08-19th British Machine Vision Conference. British Machine Vision Association, 2008: 275: 1-10.
     * **简介**：提出了一种3d的描述子描述视频特征描述子基于20面体的投影。将x,y,t在一个立方体中求平均梯度`\( iv_{\partial_x} \)`, `\( iv_{\partial_y} \)`, `\( iv_{\partial_t} \)`,把三个平均梯度投影到一个二十面体，一个二十面体可以这样表示：  
     `\[  
