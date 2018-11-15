@@ -1,5 +1,6 @@
 ---
 layout:     post
+comments:   true
 title:      文献阅读
 subtitle:   3d视频描述算子
 date:       2018-11-14
