@@ -19,9 +19,10 @@ tags:
         \quad where \quad \varphi = \frac{1+\sqrt{5}}{2}
     \\]  
     投影公式：  
-    $$  
+    \\[  
         \hat{q}_b=(\hat{q}_{b1},...,\hat{q}_{bn})^T=\frac{P\cdot\bar{g}_b}{\begin{Vmatrix} \bar{g}_b\end{Vmatrix}}_2
-    $$ 
+    \\]
+
     * **问题**： 
         +  为什么要把平均灰度投影到正二十面体的各个面上进行直方图统计？
         +  阈值化的理由不是很清楚，$t=p^T_i \cdot p_j \approx 1.29107$是如何计算的？
