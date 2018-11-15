@@ -58,6 +58,11 @@ kramdown:
 # 评论系统
 #Disqus（https://disqus.com/）
 disqus_username: mrobotor
+---
+layout: default
+comments: true
+# other options
+---
 
 # Gitalk
 gitalk:
