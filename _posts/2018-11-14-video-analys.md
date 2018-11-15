@@ -31,7 +31,7 @@ tags:
         (\pm1,\pm1,\pm1), \quad (0,\pm\frac{1}{\varphi},\pm\varphi),\quad (\pm\frac{1}{\varphi},\pm\varphi,0), \quad(\pm\varphi,0,\pm\frac{1}{\varphi})
         \quad where \quad \varphi = \frac{1+\sqrt{5}}{2}
     \\]  
-    投影公式：
+    投影公式：  
     \\[  
         \hat{q}_b=(\hat{q}_{b1},...,\hat{q}_{bn})^T=\frac{P\cdot\bar{g}_b}{\begin{Vmatrix} \bar{g}_b\end{Vmatrix}}_2
     \\]  
