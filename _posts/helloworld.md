@@ -6,10 +6,10 @@ date:       2018-11-14
 author:     Colin
 header-img: img/post-bg-ios9-web.jpg
 catalog: true
-comments: True
+comments: true
 tags:
     - None
-    
+
 ---
 
 # Hello world 
