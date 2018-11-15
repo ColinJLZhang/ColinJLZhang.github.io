@@ -9,6 +9,7 @@ catalog: true
 tags: 
     - video analysis
     - computervision
+    
 ---
 
 
