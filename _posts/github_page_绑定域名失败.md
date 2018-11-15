@@ -1,5 +1,6 @@
 ---
 layout:     post
+comments:   true
 title:      Page 绑定域名失败
 subtitle:   
 date:       2018-11-14
@@ -9,7 +10,7 @@ catalog: true
 tags: 
     - 建站
     - 域名解析
-    
+
 ---
 
 #  “Domain's DNS record could not be retrieved”解决方法
