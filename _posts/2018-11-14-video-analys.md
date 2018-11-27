@@ -10,6 +10,7 @@ catalog: true
 tags: 
     - video analysis
     - computervision
+    - 文献阅读
     
 ---
 1. Klaser A, Marszałek M, Schmid C. A spatio-temporal descriptor based on 3d-gradients[C]//BMVC 20OmniMarkupPreviewer08-19th British Machine Vision Conference. British Machine Vision Association, 2008: 275: 1-10.
