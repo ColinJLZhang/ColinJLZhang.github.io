@@ -1,0 +1,221 @@
+1. Zhou, Chao, et al. "Near-infrared imaging to quantify the feeding behavior of fish in aquaculture." Computers and Electronics in Agriculture 135 (2017): 233-241.
+   
+    * **简介：** 采用近红外摄像头获取鱼类运动数据，采用梯度共生灰度矩阵和SVM检测和去除反光帧。通过order moment（阶矩）的方法求取鱼的中心点，并将这些点作为劳内三角分割的顶点，通过计算鱼群簇拥指数FIFFB(flocking index of fish feeding behavior)量化鱼类捕食运动量并通过最小二乘法拟合反射帧的数据。
+    
+    * **创新点**：
+        - 利用SVM剔除反光帧图像
+        - 利用德劳内三角分割量化鱼群聚集度
+        - 人工分析与FIFFB相关性分析
+
+    * **要点：**  
+        + 灰度梯度共生矩阵 GLGCM$^{[1]}$(Gray Level-Gradient Co-occurrence Matrix)，综合利用图像的灰度梯度信息加入到灰度共生矩阵，可以计算一系列的二次统计特征。常用的数字统计特征有：小梯度优势、大梯度优势、灰度分布不均匀性、梯度分布不均匀性、能量、灰度平均、梯度平均、灰度均方差、梯度均方差、相关、灰度熵、梯度熵、混合熵、惯性、逆差矩。 计算公式可以参考：
+<div align="center">  
+        <img src="https://img-blog.csdn.net/20180606183519167?watermark/2/text/aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzIzOTI2NTc1/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70"  height="512">  
+</div>
+        计算15个纹理特征python代码：  
+          
+
+                import cv2
+                import numpy as np
+                from numba import jit
+                np.set_printoptions(suppress=True) # 输出时禁止科学表示法，直接输出小数值
+
+                def glgcm(img_gray, ngrad=16, ngray=16):
+                    '''Gray Level-Gradient Co-occurrence Matrix,取归一化后的灰度值、梯度值分别为16、16'''
+                    # 利用sobel算子分别计算x-y方向上的梯度值
+                    gsx = cv2.Sobel(img_gray, cv2.CV_64F, 1, 0, ksize=3)
+                    gsy = cv2.Sobel(img_gray, cv2.CV_64F, 0, 1, ksize=3)
+                    height, width = img_gray.shape
+                    grad = (gsx ** 2 + gsy ** 2) ** 0.5 # 计算梯度值
+                    grad = np.asarray(1.0 * grad * (ngrad-1) / grad.max(), dtype=np.int16)
+                    gray = np.asarray(1.0 * img_gray * (ngray-1) / img_gray.max(), dtype=np.int16) # 0-255变换为0-15
+                    gray_grad = np.zeros([ngray, ngrad]) # 灰度梯度共生矩阵
+                    for i in range(height):
+                        for j in range(width):
+                            gray_value = gray[i][j]
+                            grad_value = grad[i][j]
+                            gray_grad[gray_value][grad_value] += 1
+                    gray_grad = 1.0 * gray_grad / (height * width) # 归一化灰度梯度矩阵，减少计算量
+                    glgcm_features = get_glgcm_features(gray_grad)
+                    return glgcm_features
+
+                @jit
+                def get_glgcm_features(mat):
+                    '''根据灰度梯度共生矩阵计算纹理特征量，包括小梯度优势，大梯度优势，灰度分布不均匀性，梯度分布不均匀性，能量，灰度平均，梯度平均，
+                    灰度方差，梯度方差，相关，灰度熵，梯度熵，混合熵，惯性，逆差矩'''
+                    sum_mat = mat.sum()
+                    small_grads_dominance = big_grads_dominance = gray_asymmetry = grads_asymmetry = energy = gray_mean = grads_mean = 0
+                    gray_variance = grads_variance = corelation = gray_entropy = grads_entropy = entropy = inertia = differ_moment = 0
+                    for i in range(mat.shape[0]):
+                        gray_variance_temp = 0
+                        for j in range(mat.shape[1]):
+                            small_grads_dominance += mat[i][j] / ((j + 1) ** 2)
+                            big_grads_dominance += mat[i][j] * j ** 2
+                            energy += mat[i][j] ** 2
+                            if mat[i].sum() != 0:
+                                gray_entropy -= mat[i][j] * np.log(mat[i].sum())
+                            if mat[:, j].sum() != 0:
+                                grads_entropy -= mat[i][j] * np.log(mat[:, j].sum())
+                            if mat[i][j] != 0:
+                                entropy -= mat[i][j] * np.log(mat[i][j])
+                                inertia += (i - j) ** 2 * np.log(mat[i][j])
+                            differ_moment += mat[i][j] / (1 + (i - j) ** 2)
+                            gray_variance_temp += mat[i][j] ** 0.5
+
+                        gray_asymmetry += mat[i].sum() ** 2
+                        gray_mean += i * mat[i].sum() ** 2
+                        gray_variance += (i - gray_mean) ** 2 * gray_variance_temp
+                    for j in range(mat.shape[1]):
+                        grads_variance_temp = 0
+                        for i in range(mat.shape[0]):
+                            grads_variance_temp += mat[i][j] ** 0.5
+                        grads_asymmetry += mat[:, j].sum() ** 2
+                        grads_mean += j * mat[:, j].sum() ** 2
+                        grads_variance += (j - grads_mean) ** 2 * grads_variance_temp
+                    small_grads_dominance /= sum_mat
+                    big_grads_dominance /= sum_mat
+                    gray_asymmetry /= sum_mat
+                    grads_asymmetry /= sum_mat
+                    gray_variance = gray_variance ** 0.5
+                    grads_variance = grads_variance ** 0.5
+                    for i in range(mat.shape[0]):
+                        for j in range(mat.shape[1]):
+                            corelation += (i - gray_mean) * (j - grads_mean) * mat[i][j]
+                    glgcm_features = [small_grads_dominance, big_grads_dominance, gray_asymmetry, grads_asymmetry, energy, gray_mean, grads_mean,
+                        gray_variance, grads_variance, corelation, gray_entropy, grads_entropy, entropy, inertia, differ_moment]
+                    return np.round(glgcm_features, 4)
+
+                if __name__=='__main__':
+                    fp = r'E:\python_practice_code\image processing\images\leaves.jpg'
+                    img = cv2.imread(fp)
+                    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                    glgcm_features = glgcm(img_gray, 15, 15)
+                    print(glgcm_features)
+                    
+            算结果分别表示：小梯度优势，大梯度优势，灰度分布不均匀性，梯度分布不均匀性，能量，灰度平均，梯度平均，灰度方差，梯度方差，相关，灰度熵，梯度熵，混合熵，惯性，逆差矩
+
+        + LIBSVM
+        windows 下使用：
+            1. 进入command 窗口并 cd 到libsvm Windows 的目录下  
+            2. 训练模型： svm-train.exe a1a.train (a1a.train 是要训练的数据，这里会自动生成一个a1a.train.model)  
+            3. 测试预测模型： svm-predict.exe a1a.test a1a.train.model a1a.out (a1a.test 是我们要预测的模型，a1a.out 是程序预测结果，程序运行还会给出一个准确率)  
+
+            同时还可以支持python，具体方法参考 https://www.csie.ntu.edu.tw/~cjlin/libsvm/  
+
+        + 图像矩求图像中心  
+        矩是概率与统计中的一个概念，是随机变量的一种数字特征。设X为随机变量，c为常数，k为正整数。则量$E[(x−c)^k]$称为X关于c点的k阶矩。   
+        针对于一幅图像，我们把像素的坐标看成是一个二维随机变量(X,Y)，那么一幅灰度图像可以用二维灰度密度函数来表示，因此可以用矩来描述灰度图像的特征。  
+        一幅M×N的数字图像f(i,j)，其p+q阶几何矩$m_{pq}$和中心矩μpq为：
+        $$m_{pq}=\sum_{i=1}^M\sum_{j=1}^Ni^pj^qf(i,j)$$
+        $$\mu_{pq}=\sum_{i=1}^M\sum_{j=1}^N(i-\bar{i})^p(j-\bar{j})^qf(i,j)$$  
+        其中f(i,j)为图像在坐标点(i,j)处的灰度值。$\bar{i}=m_{10}/m_{00},\bar{j}=m_{01}/m_{00}$
+
+        + 德劳内三角分割
+        德劳内三角分割定义了在一个平面上的点集用三角形划分了整个平面，当用来划分的三角形的最小内角和是最大时我们称为德劳内三角分割。德劳内三角分割的规则是在所有的三角形的外接圆不包含点集中的其他点。在这里作者把所有的鱼作为一个运动点，计算每一帧的德劳内三角形的周长作为FIFFB的指标，计算步骤如下：  
+            1. 随机选择第一点 $P_1$ 并选择与其最近的 $P_2$ 这两点形成第一条德劳内三角形边。
+            2. 基于边 $P_1P_2$ 选择满足德劳内规则的 $P_3$，至此满足最小外接圆半径的第一个德劳内三角形 $\Delta P_1P_2P_3$ 被选出。
+            3. $\Delta P_1P_2P_3$另外的两条边 $P_1P_3 \; P_2P_3$ 将按照第2点重新组成新的德劳内三角形。
+            4. 当点集中的所有点都已经被选择，划分完成。
+<div align=center>
+        ![德劳内三角化](https://upload.wikimedia.org/wikipedia/commons/thumb/1/1f/Delaunay_circumcircles_centers.svg/337px-Delaunay_circumcircles_centers.svg.png)
+</div>
+        + FIFFB(flocking index of fish feeding behavior)鱼群觅食簇拥指数计算   
+        $$
+        FIFFB=\frac{\sum_{i=1}^nP_i}{n}=\frac{\sum_{i=1}^n(L_1+L_2+L_3)}{n}
+        $$
+        其中 n 指德劳内三角形的个数，$L_1\,L_2\,L_3$ 分别指三角形的边长。
+
+    * **实验：**
+        对每帧图像进行人工打分，0表示没有捕食，100表示强烈抢食，将得到的数据与FIFFB进行相关性分析。
+            
+
+2. 于欣,侯晓娇,卢焕达,余心杰,范良忠,刘鹰.基于光流法与特征统计的鱼群异常行为检测[J].农业工程学报,2014,30(02):162-168.
+
+    * **简介：**
+    利用光流法（Lucas=Kanade）检测鱼群运动矢量，得到速度与转角的联合直方图和概率分布，基于基于标准互信息和局部以尝因子对鱼群进行异常检测，检测准确率达95%。
+
+    * **创新点：**
+        - 利用光流法得出速度与转角的联合概率密度。
+        - 利用标准互信息和局部距离异常因子检测鱼群异常。
+
+    * **要点：**
+        - 运动目标检测：当前帧减去背景图像，然后选择合适的阈值进行二值化处理。
+        - 光流法：Lucas-Kanade 假设在局部邻域的光流保持恒定。
+        - 相对转角和速度联合概率密度计算
+        $$
+        h(i,j) = \{ k_{i,j}, 0< i \leq n, 0< j \leq m\}
+        $$
+        式中n,m 分别表示转角和速度的区间个数。
+        每帧的速度与转角的联合概率分布：
+        $$
+        p(i,j) = \frac {h(i,j)}N
+        $$
+        式中N 表示运动矢量的总数。
+        - 标准互信息（NMI）异常检测  
+        定义随机变量X的熵：$H(X) = -\sum ^n_{i=1}p_X(x_i)\log p_X(x_i)$  
+        定义联合熵：$H(X,Y) = -\sum ^n_{i=1}\sum ^m_{m=1}p_{X,Y}(x_i,y_i)\log p_{X,Y}(x_i,y_i)$  
+        定义互信息(MI)：$I(X,Y) = H(X) + H(Y) - H(X,Y)$  
+        标准互信息(NMI)：$NMI(X,Y)=\frac {I(X,Y)}{max(H(X),H(Y))}-1$
+        - 局部距离异常因子检测(LDOF)
+        用来表征目标偏离特征类的指标，这里论文先选取了3000帧的正常样本，并指定k=100，计算目标帧与样本帧联合概率分布的欧式距离做LDOF的计算数据，相关公式：  
+        KNN距离：$d_{x_p}=\frac 1k\sum _{x_i\subset N_p}dist (x_i,x_p)$   
+        KNN内距离：$ D_{x_p} = \frac 1{k(k-1)} \sum _{{x_i,x_j}\subset {N_p, i\neq j}} dist(x_i,x_j) $   
+        局部距离异常因子：$LDOF_k(x_p) = \frac {d_{x_p}}{D_{x_p}}$
+        ![LOF](http://scikit-learn.org/stable/_images/sphx_glr_plot_lof_001.png)
+    * **实验：**
+        通过比较人为观察数据与实验的设置的阈值数据是否可以将异常状态检测出来或者是否存在错误检测进行对比，实验正确率NMI:99.92% LDOF:99.88%
+
+    * **讨论：**
+        - 运动目标提取：可以采用OTSU而避免选择阈值
+        - NMI和LDOF的阈值设置： 求导数？获取变化最大？
+
+
+3. Zhao, Jian, et al. "Spatial behavioral characteristics and statistics-based kinetic energy modeling in special behaviors detection of a shoal of fish in a recirculating aquaculture system." Computers and Electronics in Agriculture 127 (2016): 271-280.
+
+    * **简介：**   
+
+        作者通过光流法获取了鱼群的分布以及鱼群的运动信息。首先对图像进行处理，处理方法有两种 a.基于平均背景建模的前景分割(BMFS) b.基于光流法的粒子平流检测（PAOF)。通过上述两种方法分别进行运动特征提取，提取的特征主要有鱼群空间区域分布直方图和速度与转角联合直方图，并分别就直方图求熵，最后根据动态能量模型求得动态能力$E_(kn)$。通过对每一帧所求的到的俩种熵和一个能量图进行分析可以得到鱼群的聚散时间。  
+    
+    * **创新点：**  
+        - 通过BMFS和PAOF两种方法对图像进行预处理
+        - 将动态能量函数用于评估鱼群的运动特征
+
+    * **要点：**  
+        - 基于背景建模的前景分割（BMFS）:
+            1. 平均背景建模(Average Background Model):
+            计算每个像素的平均值作为背景模型
+            $$
+            d(x,y) = I(x,y) - u(x,y)
+            $$
+            $$
+            output(x,y) = \begin{cases} 1 , & \mid d(x,y) \mid > TH  \\ 0, & \text otherwise \end{cases}
+            $$
+            这里的TH采用自适应的算法进行确定，计算像素额帧间差的平均值$u_diff$和标准差$diff_std$。公式如下：
+            $$
+            \begin{eqnarray*}
+            F_t(x,y) =& \mid I_t(x,y) - I_{t-inter}(x,y) \mid \; \tag{3-3} \\
+            u_diff(x,y) =& \frac 1M \sum_{t=inter+1}^MF_t(x,y) \; \tag{3-4} \\
+            diff_std(x,y) =& \sqrt{\frac 1M \sum_{t=inter+1}^M \sum(F_t(x,y)-u_diff(x,y))^2} \; \tag{3-5}
+            \end{eqnarray*}
+            $$
+            $I_t(x,y)$ 代表t时刻图像中(x,y)处的像素值，inter代表两帧之间的间隔，通常设置成3，M通常要住够大，根据$u_diff(x,y),diff_std(x,y)$ 可求得：
+            $$
+            TH = u_{diff} + \beta * diff_{std}
+            $$
+            其中$\beta$ 一般设置为2
+            2. 高斯背景建模           
+        - 基于光流法的粒子平流检测(PAOF):
+        - 空间分布特征提取：
+        - 运动特征提取：
+        - 动态能量方程建立：
+
+    * **实验：**
+    * **讨论：**
+
+
+
+
+
+___
+[1] Hong, J., 1984. Gray level-gradient co-occurrence matrix texture analysis method.
+Acta Autom. Sin. 10, 22–25.
