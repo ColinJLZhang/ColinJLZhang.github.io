@@ -8,8 +8,8 @@ header-img: img/post-bg-ios9-web.jpg
 catalog: true
 comments: true
 tags:
-    - None
-
+    - Python
+    - OpenCV
 ---
 
 # Python OpenCV 设置相机参数，参数列表如下：
