@@ -140,6 +140,6 @@ for i in range(1, t + 1):
 [大数据集](https://github.com/ColinJLZhang/ColinJLZhang.github.io/blob/master/files/B-large-practice.in)    
 [小数据集](https://github.com/ColinJLZhang/ColinJLZhang.github.io/blob/master/files/B-large-practice.in) 
 
-<a href="https://github.com/ColinJLZhang/ColinJLZhang.github.io/blob/master/files/B-large-practice.in" download="big-data">大数据集</a>   
+<a href="https://github.com/ColinJLZhang/ColinJLZhang.github.io/blob/master/files/B-large-practice.in" download="big-data">数据集</a>   
 
 
