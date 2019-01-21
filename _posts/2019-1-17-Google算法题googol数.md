@@ -138,6 +138,8 @@ for i in range(1, t + 1):
 下面是Google提供的测试数据，分别是大数据集和小数据集：
 
 [大数据集](https://github.com/ColinJLZhang/ColinJLZhang.github.io/blob/master/files/B-large-practice.in)    
-[小数据集](https://github.com/ColinJLZhang/ColinJLZhang.github.io/blob/master/files/B-large-practice.in)    
-[test](file://..\..\..\..\files\B-small-practice.in)
+[小数据集](https://github.com/ColinJLZhang/ColinJLZhang.github.io/blob/master/files/B-large-practice.in) 
+
+<a href="https://github.com/ColinJLZhang/ColinJLZhang.github.io/blob/master/files/B-large-practice.in">大数据集</a>   
+
 
