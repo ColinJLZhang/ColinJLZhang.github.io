@@ -103,8 +103,6 @@ ___________
 
 实际上，sr函数只会改变二叉树的根节点内容，查看如下S4和rs(S4),他们只有根节点取反其子树完全一致，原因在于S4的右子树本身是对S4的左子树rs，所以S5的右子树为rs(S4_l)=S4_r。所以我们可以看到二叉树的每层都是0 1 交替。所以我们只要确定K在二叉树的哪一层的第几个元素就可以求出该元素的值。
 
-![img](https://github.com/ColinJLZhang/ColinJLZhang.github.io/blob/master/img/article/1.png)
-
 ![img](..\..\..\..\img\article\1.png)
 可以看到无论是S3的第二个元素还是S4的第二个元素，他们都是同一个元素，这是因为后一个序列是在前一个序列的基本结构上增加的结果，所以我们在求一个序列中的某个元素时，我们可以先计算出它属于的最小序列，比如S100的第一个元素和S1的第一个元素是完全相同的所以我们不必考虑S100只用考虑S1就可以了。
 
@@ -139,9 +137,6 @@ for i in range(1, t + 1):
 ```
 下面是Google提供的测试数据，分别是大数据集和小数据集：
 
-[大数据集](file://..\files\B-small-practice.in)  
-[小数据集](file://..\files\B-large-practice.in)
-
-    
-    
+[大数据集](https://github.com/ColinJLZhang/ColinJLZhang.github.io/blob/master/files/B-large-practice.in)    
+[小数据集](https://github.com/ColinJLZhang/ColinJLZhang.github.io/blob/master/files/B-large-practice.in)    
 
