@@ -139,4 +139,5 @@ for i in range(1, t + 1):
 
 [大数据集](https://github.com/ColinJLZhang/ColinJLZhang.github.io/blob/master/files/B-large-practice.in)    
 [小数据集](https://github.com/ColinJLZhang/ColinJLZhang.github.io/blob/master/files/B-large-practice.in)    
+[test](file://..\..\..\..\files\B-small-practice.in)
 
