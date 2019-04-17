@@ -1,8 +1,8 @@
 ---
 layout:     post
 title:      隐含马尔科夫链的viterbi算法的理解
-subtitle:   为什么viterbi有用
-date:       2019-04-03
+subtitle:   viterbi算法的本质
+date:       2019-04-17
 author:     Colin
 header-img: img/post-bg-ios9-web.jpg
 catalog: true
