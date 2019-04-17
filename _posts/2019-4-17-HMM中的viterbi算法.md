@@ -24,8 +24,8 @@ tags:
 
 我在北京的女朋友每天根据天气 {rainy，sunny} 决定当天的活动 {walk，shop，clean} 中的一种，她希望我能根据她的活动来猜测北京的天气。我只能从她的朋友圈看到她每天的活动，也就是我每天只能知道她今天是去散步，购物还是打扫房间了。这个例子其中 {rainy，sunny} 便是隐含状态链； {walk，shop，clean} 是可观测状态链；隐含状态（天气）之间的相互转换概率叫做状态转移概率；我女朋友每天干什么并没有直接的联系，但是她每天做什么却受到天气的影响，比如她比较喜欢下雨天打扫房间所以下雨天她打扫房间的概率是0.5，而她讨厌下雨天出去逛街，所以她下雨天出去逛街的概率是0.1，这个概率就是发射概率；还有个初始概率即最开始是晴天还是雨天的概率。
 <br>
-<center>
-    ![img](..\..\..\..\img\article\viterbi1.webp)
+<center>  
+    <img src="..\..\..\..\img\article\viterbi1.webp">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
@@ -75,7 +75,7 @@ viterbi算法的思想在于计算到目前为止的最优路径，比如：
 
 下面放一张维基百科的动图，虽然不是这个例子但是很形象的说明了路径规划的优点。
 <center>
-    ![img2](..\..\..\..\img\article\Viterbi_animated_demo.gif)
+    <img src="..\..\..\..\img\article\Viterbi_animated_demo.gif">
     <br>
     <div style="color:orange; border-bottom: 1px solid #d9d9d9;
     display: inline-block;
