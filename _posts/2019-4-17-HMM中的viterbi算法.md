@@ -176,4 +176,8 @@ Rainy:  0.06000 0.03840 0.01344
 (0.01344, ['Sunny', 'Rainy', 'Rainy'])
 ```
 
+
+[参考1](https://wulc.me/2017/03/02/%E7%BB%B4%E7%89%B9%E6%AF%94%E7%AE%97%E6%B3%95/)
+<br>[参考2](https://www.jianshu.com/p/3a83c2b83821)
+
 **HAPPY CODING!**
