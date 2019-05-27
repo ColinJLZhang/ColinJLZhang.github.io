@@ -4,7 +4,7 @@ title:      2019-5-23-TensorFlow学习笔记(1)
 subtitle:   底层API学习
 date:       2019-05-23
 author:     Colin
-header-img: img/post-bg-mma-5.png
+header-img: img/post-bg-mma-5.jpg
 catalog: true
 comments: true
 tags:
@@ -16,7 +16,7 @@ tags:
 
 众所周知，tensorflow具有高层的API可以方便的构建模型，通过tf.keras,tf.Data,tf.Estimators可以方便的构建模型，我们无需操心模型的底层运算，但是这也让我们无法对底层的数据进行操作，如果我希望自己控制我的训练循环情况我想要对某一个tensor进行特殊化的操作。另外了解底层的操作会对我们对代码的理解和调试有一个更好的指导。
 
-#### 1. Tensor Values
+##### 1. Tensor Values
 
 张量值我认为比较类似于一个矩阵，它包含了秩和形状两个属性，可以这样直观的理解，在python中秩等于中括号“[“的层数，而形状则是先从最外层的括号中计算包含多少元素直到最内层，请看官网给出的例子：
 >3\. \# a rank 0 tensor; a scalar with shape [],,
@@ -27,7 +27,7 @@ tags:
 >
 >[[[1., 2., 3.]], [[7., 8., 9.]]] # a rank 3 tensor with shape [2, 1, 3]
 
-#### 2. TensorFlow Core
+##### 2. TensorFlow Core
 
 * 构建图(bulid graph)
 
@@ -49,7 +49,7 @@ tags:
 
     从前面的打印信息我们可以看到，输出的并不是我们预想中的计算值，实际上我们只是完成了整个张量图的构建，在运行这个图之前我们无法得到一个值。
 
-#### 3. Session
+##### 3. Session
 
 要评估张量，需要实例化一个 tf.Session 对象（非正式名称为会话）。会话会封装 TensorFlow 运行时的状态，并运行 TensorFlow 操作。如果说 tf.Graph 像一个 .py 文件，那么 tf.Session 就像一个 python 可执行对象。
 
@@ -69,7 +69,7 @@ tags:
 
 必须要注意到，在调用tf.Session.run期间，任何Tensor都只能有一个单值不可更改。如上述代码每个out的运算过程都会调用random_uniform函数但是输出的过程却是相同的。
 
-#### 4. feed_dict
+##### 4. feed_dict
 
 到目前为止，我们可以看到这个graph还是比较无趣的只能计算一些常量的加减乘除，为了一些更有趣的玩法我们要引入placeholder的概念，这里有点类似于python函数中传入的参数，在中文里我们一般翻译为占位符。
 
@@ -85,7 +85,7 @@ tags:
     >>>7.5
     >>>[ 3.  7.]
 
-#### 5. Data
+##### 5. Data
 
 placeholder的方式适用于简单的少量的输入，比如我们的模型训练完成以后运用这个模型去预测新的样本值时我们的输入只有一个样本。但是在深度学习中，我们训练时的样本都是一个大型的数据集，这时我就可以运用tf.data。
 
@@ -124,7 +124,7 @@ placeholder的方式适用于简单的少量的输入，比如我们的模型训
       except tf.errors.OutOfRangeError:
         break
 
-#### 6. layers
+##### 6. layers
 
 层的概念主要是把变量和操作打包，比如Dense层是对应的将每一个输入进行加权和以及非线性（optional）。连接的权重和偏置项由层对象进行管理。下面我来试试Dense层：
 
@@ -162,7 +162,7 @@ placeholder的方式适用于简单的少量的输入，比如我们的模型训
 
 尽管这种方法很方便，但无法访问tf.layers.Layer对象。这会让自省和调试变得更加困难，并且无法重复使用相应的层。
 
-#### 7. feature_column
+##### 7. feature_column
 
 这个概念我暂时还没有完全的理解，目前我的看法是，通过feature_column可以对输入的特征进行整合和编码，比如下面的例子中就是如果我有两个向量都是对目标的特征描述，那么我可以通过tf.feature_column_layer把它转化成一个输入特征的tensor？ Anyway先放上代码再说：
 
@@ -197,7 +197,7 @@ placeholder的方式适用于简单的少量的输入，比如我们的模型训
         [  0.   1.   8.]
         [  0.   1.   9.]]        
 
-#### 8. 训练一个简单的回归模型
+##### 8. 训练一个简单的回归模型
 
 1. 定义数据
 
@@ -354,7 +354,159 @@ tensor与numpy array有很多性质相似，支持下标索引元素，切片操
     t.eval(feed_dict={p:2.0})  # This will succeed because we're feeding a value
                                # to the placeholder.
     
-在调试过程中，我们还经常使用tf.Print()
+在调试过程中，我们还经常使用tf.Print()，通过t.Print()我们在打印最后的tensor值的同时也可以将一些中间变量同时打印出来，比如：
+    
+    t = tf.constant([1,2,3])
+    t = tf.Print(t.[t])   #by adding this code, when you print any tensor the value of t will be printed
+    result = t + 1
+
+    print(sess.run(result))
+
+    >>>[1 2 3]       #current value of the tensor t
+    array([2, 3, 4]) #current value of the tensor result
+
+### Variables
+
+TensorFlow 中的变量与其他程序中的变量是相识的，用来表示那些会变化的量，比如在训练过程中的参数随着迭代会改变。<br>
+variable 可以通过tf.Variable类进行操作，通过tf.variable的操作可以改变它的值，与tf.Tensor不同的是tf.variable可以存在多个不同的session之间。
+
+在 TensorFlow 内部，tf.Variable 会存储持久性张量。具体 op 允许您读取和修改此张量的值。这些修改在多个 tf.Session 之间是可见的，因此对于一个 tf.Variable，多个工作器可以看到相同的值。
+
+##### 1. 创建变量
+
+通过tf.get_variable()可以轻松的创建变量，只需要提供名称和形状即可,注意名字不可重复
+    
+    my_variable = tf.get_variable("my_varible", [1,2,3])
+
+上面的代码会创建一个形状为[1，2，3]的三维张量，默认情况这个变量具有dtype tf.float32，初始值通过tf.glorot_uniform_initializer随机设置。
+
+我们也可以指定dtype和initializer：
+    
+    my_int_variable = tf.get_variable("my_int_variable", [1,2,3],
+        dtype=tf.int32, initializer=tf.zeros_initializer)
+
+除此之外，也可以直接将variable初始化为tensor值：
+
+    other_variable = tf.get_variable("other_variable", dtype=tf.int32, initializer=tf.constant([23,42]))
+
+注意，如果初始化器是 tf.Tensor 时，**不能指定形状**，这时的形状应该和tensor一致。
+
+- 变量的集合
+
+    由于TensoFlow存在一些独立的部分未被连接，为了访问所有的变量tensorflow提供了集合，集合提供了变量的名称列表。
+
+    一般情况下，每个tf.Variable都放置在一下两个集合中：
+
+    - tf.GraphKeys.GLOBAL_VARIABLES -在多台设备间共享的变量
+    - tf.GraphKeys.TRAINABLE_VARIABLES-TensorFlow将计算其梯度的变量
+
+    如果不希望变量得到训练，可以将其添加到tf.GraphKeys.LOCAL_VARIABLES集合中：
+
+        my_local = tf.get_variable("my_local_variable",
+                                    shape=()
+                                    collections=[tf.GraphKeys.LOCAL_VARIABLES])
+
+    或者显示的指定不可训练，trainable = Flase
+
+        my_non_trainable = tf.get_variable("my_non_trainable",
+                                            shape=()
+                                            trainable=False)
+
+    当然可以使用我们自己的集合，集合名称可以为任何可哈希字符串，而且无须显示的创建，开下面的例子：
+
+        tf.add_to_collection("my_collection_name", my_local)
+
+    上面的代码中我们没有显示的创建 my_collection_name 这个变量，当我们执行这段代码的时候就会自动创建这个集合。
+
+    tf.get_collection("my_collection_name")可以检索所有存在该集合的变量
+
+        tf.get_collection("my_collection_name")
+        >>> [<tf.Variable 'my_local:0' shape=() dtype=float32_ref>]
+
+
+- 分布式下指定变量
+    
+    与任何其他TensorFlow指令一样，您可以将变量放置在特定设备上。例如，以下代码段创建了名为 v 的变量并将其放置在第二个 GPU 设备上：
+
+        with tf.device("/device:GPU:1"):
+          v = tf.get_variable("v", [1])
+
+    在分布式设置中，将变量放置在正确设备上尤为重要。如果不小心将变量放在工作器而不是参数服务器上，可能会严重减慢训练速度，最坏的情况下，可能会让每个工作器不断复制各个变量。为此，我们提供了 tf.train.replica_device_setter，它可以自动将变量放置在参数服务器中。例如：
+
+        cluster_spec = {
+            "ps": ["ps0:2222", "ps1:2222"],
+            "worker": ["worker0:2222", "worker1:2222", "worker2:2222"]}
+        with tf.device(tf.train.replica_device_setter(cluster=cluster_spec)):
+                  v = tf.get_variable("v", shape=[20, 20])  # this variable is placed
+                                                            # in the parameter server
+                                                            # by the replica_device_setter
+
+##### 2. 初始化变量
+
+变量必须先初始化以后才可以使用。当使用低级API显示的构建了图和会话那么必须明确的进行变量初始化。[tf.contrib.slim](https://www.tensorflow.org/api_docs/python/tf/contrib/slim)、[tf.estimator.Estimator](https://www.tensorflow.org/api_docs/python/tf/estimator/Estimator) 和Keras等大多数高级框架在训练模型前会自动为您初始化变量。
+
+显示的初始化变量有众多好处，其中一个就是可以允许我们从检查点开始初始化参数，避免从头开始训练。
+
+在训练开始前一次性的初始化所有的可训练变量方法：tf.global_variables_initializer(), 这个函数会返回一个operation，负责初始话tf.GraphKeys.GLOBAL_VARIABLES集合中的所有变量。运行这个操作会初始化所有的变量：
+
+  1. 全部初始化 &nbsp;&nbsp; tf.global_variables_initializer()
+
+        sess = tf.Session()
+        init = tf.global_variables_initializer()
+        sess.run(init)
+
+    注意：init = tf.global_variables_initializer() 函数的调用一定是在变量创建完成以后才能有效的初始化，因为tf.global_variables_initializer()是把目前tf.GraphKeys.GLOBAL_VARIABLES集合里面的变量初始化而后面创建的变量现在是没有在这个集合中的，比如：
+
+        init = tf.global_variables_initializer()
+        my_variable = tf.get_varibales("my_variable", (1,2,3))
+        sess.run(init)  #这里的初始化是失败的，因为init没有吧"my_variable"这个变量纳入到初始化的列表中。
+  
+  2. 初始化某一个变量 &nbsp;&nbsp; my_variable.initialer
+
+        my_variable = tf.get_variable("my_variable", shape=(1,2,3))
+        sess.run(my_variable.initializer)
+
+  3. 查询哪些变量尚未初始化 &nbsp;&nbsp; tf.report_uninitialized_variable()
+
+        print(sess.run(tf.report_uninitialized_variable()))  #this will return a list
+        print(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES))
+        print(tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES))
+
+  4. 存在相关关系的变量初始化
+    
+    如果某一个变量的值依赖于另一个变量，由于global_variables_initializer 不会指定初始化的顺序，那么在初始化时就会出现错误。这种情况下，当我们要使用一个变量的值依赖于另一个变量的值时，我们一般情况下可以
+
+       a. 先初始化被引用的变量然后再初始化引用变量
+
+       b. 引用变量时，使用variable。initialized_value() 而不是直接引用。
+
+        v = tf.get_variable("v", shape=(), initializer=tf.zeros_initializer())
+        w = tf.get_variable("w", initializer=v.initialized_value() + 1)
+
+        init = tf.global_variables_initializer()
+        sess = tf.Session()
+        sess.run(init)
+
+        sess.run((v,w))
+        >>>(0.0, 1.0)
+
+
+##### 3. 调用变量
+
+在使用 variable 中的值的时候，只需要将其视作普通的Tensor即可：
+
+    v = tf.get_variable("v", shape=(), initializer=tf.zeros_initializer())
+    w = v + 1
+
+改变变量所带有的值，可以使用assign，assign_add方法等，比如：
+
+    v = tf.get_variable("v", shape=(), initializer=tf.zeros_initializer())
+    assignment = v.assign_add(1)
+    tf.global_variables_initializer().run()
+    sess.run(assignment)  # or assignment.op.run(), or assignment.eval()
+
+##### 4. 共享变量
+
 
 
 参考：
