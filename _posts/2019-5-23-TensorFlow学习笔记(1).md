@@ -503,9 +503,225 @@ variable 可以通过tf.Variable类进行操作，通过tf.variable的操作可�
     v = tf.get_variable("v", shape=(), initializer=tf.zeros_initializer())
     assignment = v.assign_add(1)
     tf.global_variables_initializer().run()
+    sess.run(v)
+    >>> 0
     sess.run(assignment)  # or assignment.op.run(), or assignment.eval()
+    >>> 1
+    sess.run(v)           # comes to 1 because of the assignment
+    >>> 1
+    sess.run(assignment)  # try to do it again
+    >>> 2
+    sess.run(v)           # add 1 more on v
+    >>> 2
 
-##### 4. 共享变量
+可以看到改变变量所带有的值是通过类似与assign的操作来实现的，而且必须注意到这些操作必须要通过一个会话（session）来运行才会显示出实际的效果，而且这些操作可以重复的执行，对变量进行操作。
+
+##### 4. 查看变量
+
+由于变量的值是变化的所以整个过程我们最好能有办法对变量的值进行监控，也许你会想，直接 sess.run() 或者是 eval() 就可以查看了吗？ 事实上有的时候你可以这么做，但是这样做的实际意义是把变量的图运行一遍等到的变量值，但是如果我们运用了上面的 tf.assign 的方法不但得不到我们想要的结果我们甚至会把 tf.assign() 的结果覆盖掉，所以正确的查看变量方法是 tf.read_value()
+
+    v = tf.get_variable("v", shape=(), initializer=tf.zeros_initializer())
+    assignment = v.assign_add(1)
+    w = v.read_value()     # w is guaranteed to reflect v's value after the
+                           # assign_add operation.
+
+    sess.run(v)
+    >>> 0
+    sess.run(assignment)   # execute assignment operation
+    >>> 1
+    sess.run(w)            # check value of the v
+    >>> 1
+    sess.run(v)            # look at v (I can do this 
+    >>> 1                  #  beacuse v is not in a graph)
+
+##### 5. 共享变量
+
+TensorFlow 支持两种共享变量的方式：
+
+  - 显式传递 tf.Variable 对象。
+  - 将 tf.Variable 对象隐式封装在 tf.variable_scope 对象内。
+
+虽然显式传递变量的代码非常清晰，但有时编写在其实现中隐式使用变量的 TensorFlow 函数非常方便。tf.layers中的大多数功能层以及所有tf.metrics和部分其他库实用程序都使用这种方法。
+
+变量作用域允许您在调用隐式创建和使用变量的函数时控制变量重用。作用域还允许您以分层和可理解的方式命名变量。
+
+例如，假设我们编写一个函数来创建一个卷积/relu 层：
+```python
+    def conv_relu(input, kernel_shape, bias_shape):
+        # Create variable named "weights".
+        weights = tf.get_variable("weights", kernel_shape,
+            initializer=tf.random_normal_initializer())
+        # Create variable named "biases".
+        biases = tf.get_variable("biases", bias_shape,
+            initializer=tf.constant_initializer(0.0))
+        conv = tf.nn.conv2d(input, weights,
+            strides=[1, 1, 1, 1], padding='SAME')
+        return tf.nn.relu(conv + biases)
+```
+此函数使用短名称 weights 和 biases，这有利于清晰区分二者。然而，在真实模型中，我们需要很多此类卷积层，而且重复调用此函数将不起会报错，因为在 tf.GraphKeys.TRAINABLE_VARIABLES 中已经存在了改变了，无法重新创建可以相同的变量：
+
+```python
+    input1 = tf.random_normal([1,10,10,32])
+    input2 = tf.random_normal([1,20,20,32])
+    x = conv_relu(input1, kernel_shape=[5, 5, 32, 32], bias_shape=[32])
+    x = conv_relu(x, kernel_shape=[5, 5, 32, 32], bias_shape = [32])  # This fails.
+    >>> ValueError: Variable weights already exists, disallowed.
+```
+
+在上述的操作中，第二行的 conv_relu() 的调用存在明显的歧义，在conv_relu中是重新创建 weight 等参数 还是直接沿用上一次所创建的变量，如果是创建一个新的变量由于不允许相同名称 tensor 的出现那么我们需要指定新的命名空间：
+
+```python
+    def my_image_filter(input_images):
+        with tf.variable_scope("conv1"):
+            # Variables created here will be named "conv1/weights", "conv1/biases".
+            relu1 = conv_relu(input_images, [5, 5, 32, 32], [32])
+        with tf.variable_scope("conv2"):
+            # Variables created here will be named "conv2/weights", "conv2/biases".
+            return conv_relu(relu1, [5, 5, 32, 32], [32])
+```
+
+如果您想要共享(复用)变量，有两种方法可供选择。首先，您可以使用 reuse=True 0 创建具有相同名称的作用域：
+
+```python
+    with tf.variable_scope("model"):
+      output1 = my_image_filter(input1)
+    with tf.variable_scope("model", reuse=True):
+      output2 = my_image_filter(input2)
+```
+
+同时，也可以调用 scope.reuse_variables()以触发重用：
+
+```python
+    with tf.variable_scope("model") as scope:
+      output1 = my_image_filter(input1)
+      scope.reuse_variables()
+      output2 = my_image_filter(input2)
+```
+由于依赖于作用域的确切字符串名称可能比较危险(万一打错了岂不是完蛋)，因此也可以根据另一作用域初始化某个变量作用域：
+
+```python
+    with tf.variable_scope("model") as scope:
+      output1 = my_image_filter(input1)
+    with tf.variable_scope(scope, reuse=True):
+      output2 = my_image_filter(input2)
+```
+### Graph and Session
+
+#### 1. 什么是数据流图
+
+TensorFlow 使用数据流图将计算表示为独立的指令之间的依赖关系。这可生成低级别的编程模型，在该模型中，您首先定义数据流图，然后创建 TensorFlow 会话，以便在一组本地和远程设备上运行图的各个部分。
+
+如果您计划直接使用低级别编程模型，本指南将是您最实用的参考资源。较高阶的 API（例如 tf.estimator.Estimator 和 Keras）会向最终用户隐去图和会话的细节内容。
+
+你可以把数据流图看作是一个巨大的表达式，这个表达式除了加减乘除幂次方等基本运算法则还包括了卷积，求梯度，优化变量等运算法则，甚至你可以定义自己的运算法则，最后当我们运行这个图的时候类似于我们按下计算机的等号，我们就可以得到最后我们要的参数的结果。
+
+<center>  
+    <img src="..\..\..\..\img\article\tensors_flowing.gif">
+    <br>
+    <div style="color:orange; border-bottom: 1px solid #d9d9d9;
+    display: inline-block;
+    color: #999;
+    padding: 2px;">数据流图 图源tensorflow官网</div>
+</center>
+
+数据流是一种用于并行计算的常用编程模型。在数据流图中，节点表示计算单元，边缘表示计算使用或产生的数据。例如，在 TensorFlow 图中，tf.matmul操作对应于单个节点，该节点具有两个传入边（要相乘的矩阵）和一个传出边（乘法结果）。
+
+#### 2. 为什么使用数据流图
+
+在执行您的程序时，数据流可以为 TensorFlow 提供多项优势：
+
+- **并行处理。** 通过使用明确的边缘来表示操作之间的依赖关系，系统可以轻松识别能够并行执行的操作。
+
+- **分布式执行。** 通过使用明确的边缘来表示操作之间流动的值，TensorFlow 可以将您的程序划分到连接至不同机器的多台设备上（CPU、GPU 和 TPU）。TensorFlow 将在这些设备之间进行必要的通信和协调。
+
+- **编译。** TensorFlow 的 XLA 编译器可以使用数据流图中的信息生成更快的代码，例如将相邻的操作融合到一起。
+
+- **可移植性。** 数据流图是一种不依赖于语言的模型代码表示法。您可以使用 Python 构建数据流图，将其存储在 SavedModel 中，并使用 C++ 程序进行恢复，从而实现低延迟的推理。
+
+#### 3. tf.Graph
+
+tf.Graph 包含两个信息：
+
+- **图结构。**
+
+    图结构是指，所有的运算是如何连接起来的，如何从一个图的边缘运算到另外的一个图边缘的
+
+- **图集合。**
+
+    TensorFlow为了方便对各种节点变量的管理，提供一种集合的管理方式。你可以将你的对象放置到某一个集合中，[tf.GraphKeys](https://www.tensorflow.org/api_docs/python/tf/GraphKeys) 预先定义了一些集合，他们具有特殊的意义，不同的集合下有不同的作用。通过tf.add_to_collection函数允许你把你的对象放到这些集合中，tf.get_collection 允许您查询与某个键关联的所有对象。TensorFlow库的许多部分会使用此设施资源：例如，当您创建 tf.Variable时，系统会默认将其添加到表示“全局变量”和“可训练变量”的集合中。当您后续创建tf.train.Saver 或 tf.train.Optimizer 时，这些集合中的变量将用作默认参数。
+
+#### 4. 构建 tf.Graph
+
+tensorflow 总是在构建一个图并对图进行计算，通过tensorflowd的函数可以构建新的 tf.Operation (节点) 和 tf.Tersor (边)。 TensorFlow 提供一个默认图，这个图是同一上下文中所有API函数的明确参数。例如：
+
+- 调用 tf.coanstant(42.0) 可以创建单个的 tf.Operation, 该操作会生成一个值42.0，并将该值添加到默认的图中，返回一个常量的 tf.Tensor 。
+- 调用 tf.matmul(x, y) 可以创建一个 tf.Operation, 该操作会将x , y 对象进行矩阵乘，将其添加到默认的图中，返回表示乘法运算结果的 tf.Tensor.
+- 执行 v = tf.Variable(0)可以为图添加一个 tf.Operation 这里创建了一个可以存储和写入的张量值，该值在多个张量之间保持恒定。这个操作返回的对象具有 assign 和 assign_add 等方法， 这些方法可以创建一个 tf.Operation 对象，在执行图的过程中对图前述的值进行改变。
+- 调用 tf.train_Optimizer.minimize 可以将操作和张量添加到计算梯度的默认图中，并返回一个 tf.Operation 该操作在运行时会将梯度运用到训练的参数上以改变参数值获得更低的 loss。
+
+大多数程序仅依赖于默认图。尽管如此，请参阅处理多个图了解更加高级的用例。高阶 API（比如 tf.estimator.Estimator API）可替您管理默认图，并且还具有其他功能，例如创建不同的图以用于训练和评估。
+
+#### 5. 命名空间
+
+TensorFlow 通过命名空间帮助我们更好的管理变量名称。 TF在图中只会允许存在唯一性的名称，如果存在相同的名称命名，有的时候TF会自动为我们创建新的变量名，如果出现了歧义的代码甚至会出现报错，我们来看一个例子：
+
+TF会自动帮我们改变变量名的情况：
+
+```python
+a = tf.constant(0, name="c")  # => operation named "c"
+# >>> <tf.Tensor 'c:0' shape=() dtype=int32>
+
+# Already-used names will be "uniquified".
+b = tf.constant(2, name="c")  # => operation named "c_1"
+# >>> <tf.Tensor 'c_1:0' shape=() dtype=int32>
+
+# Name scopes add a prefix to all operations created in the same context.
+with tf.name_scope("outer"):
+  c_2 = tf.constant(2, name="c")  # => operation named "outer/c"
+
+  # Name scopes nest like paths in a hierarchical file system.
+  with tf.name_scope("inner"):
+    c_3 = tf.constant(3, name="c")  # => operation named "outer/inner/c"
+
+  # Exiting a name scope context will return to the previous prefix.
+  c_4 = tf.constant(4, name="c")  # => operation named "outer/c_1"
+
+  # Already-used name scopes will be "uniquified".
+  with tf.name_scope("inner"):
+    c_5 = tf.constant(5, name="c")  # => operation named "outer/inner_1/c"
+```
+
+TF会报错的情况：
+
+```python
+a = tf.get_variable("weights", shape=(3,3))  # creat a trainable variable named weights
+# >>> <tf.Variable 'weights:0' shape=(3, 3) dtype=float32_ref>
+
+b = tf.get_variable("weights", shape=(3,3)) # do u want to reuse the variable or wanna a new variable?
+# >>> ValueError: Variable weights already exists,
+#               disallowed. Did you mean to set reuse=True ...
+
+```
+
+报错的原因就是因为这里程序不确定你的目的是创建一个新的变量还是想要复用之前的变量，所以TF没有贸然的创建一个变量而是提醒你是想要复用还是重新创建一个变量。
+
+#### 6. 将operation放置在不同的设备上
+
+（这部分我暂时用不上先，等到以后用了再回来详细研究，这里直接放上官方API）
+
+如果您希望 TensorFlow 程序使用多台不同的设备，则可以使用 tf.device 函数轻松地请求将在特定上下文中创建的所有操作放置到同一设备（或同一类型的设备）上。
+
+设备规范具有以下形式：
+
+    /job:<JOB_NAME>/task:<TASK_INDEX>/device:<DEVICE_TYPE>:<DEVICE_INDEX>
+
+其中：
+
+- <JOB_NAME\>  是一个字母数字字符串，并且不以数字开头。
+- <DEVICE_TYPE\>  是一种注册设备类型（例如 GPU 或 CPU）。
+- <TASK_INDEX\>  是一个非负整数，表示名为 <JOB_NAME> 的作业中的任务的索引。请参阅 tf.train.ClusterSpec 了解作业和任务的说明。
+- <DEVICE_INDEX\>  是一个非负整数，表示设备索引，例如用于区分同一进程中使用的不同 GPU 设备。
+
 
 
 
