@@ -896,11 +896,13 @@ with tf.Session() as sess:
 
   # Print the timings of each operation that executed.
   print(metadata.step_stats)
-  ```
+```
 
 #### 10. 可视化你的图  
 
+
 TF提供了种可视化计算图的模块 TensorBoard 的一个组件，可以在浏览器中可视化图的结构。 创建可视化图最简单的办法是传递 tf.Graph 到 tf.summary.FileWriter ：
+
 
 ```python
 # Build your graph.
@@ -929,11 +931,252 @@ with tf.Session() as sess:
 
 #### 11. 使用多个图进行编程
 
+使用多个图进行编程是必要而且方便的，比如我们常常使用不同的图进行训练和预测推理，因为在训练时我们所用到的 dropout 和 batch normalization 在训练和预测时的使用是不同的。
 
+TF的代码提供一个“默认图”，在上下文的所有API函数都将指定到这个默认的图中，在实际的coding过程中我们可以生成不同的图并在不同的位置把这些图指定为“默认图”。TF提供了操作默认图的方法：
+
+- tf.Graph 会定义 tf.Operation 对象的命名空间: 同一个图的每个operation名称必须是唯一的，如果某个被请求的名称已经被占用，TF将在操作的名称前面附加"\_1", "\_2" 等字符以满足名称的唯一性。通过显示的创建图，可以更加有效的为每个操作指定什么样的名称。
+- 默认的图会存储与添加每个tf.Operation 和 tf.Tensor 有关的信息。如果创建了大量的独立的子图，一个跟方便的办法是通过另一个tf.Graph构建每个子图以便回收所有不相关的状态。
+
+通过tf.Graph.as_default可以指定另外一个tf.Graph作为默认的图：
+
+```python
+g_1 = tf.Graph()
+with g_1.as_default():
+  # Operations created in this scope will be added to `g_1`.
+  c = tf.constant("Node in g_1")
+
+  # Sessions created in this scope will run operations from `g_1`.
+  sess_1 = tf.Session()
+
+g_2 = tf.Graph()
+with g_2.as_default():
+  # Operations created in this scope will be added to `g_2`.
+  d = tf.constant("Node in g_2")
+
+# Alternatively, you can pass a graph when constructing
+# a <a href="../api_docs/python/tf/Session"><code>tf.Session</code></a>:
+# `sess_2` will run operations from `g_2`.
+sess_2 = tf.Session(graph=g_2)
+
+assert c.graph is g_1
+assert sess_1.graph is g_1
+
+assert d.graph is g_2
+assert sess_2.graph is g_2
+```
+
+要检查当前的默认图，请调用 tf.get_default_graph，它会返回一个 tf.Graph 对象：
+
+```python
+# Print all of the operations in the default graph.
+g = tf.get_default_graph()
+print(g.get_operations())
+```
+
+### 保存和恢复你的变量数据
+
+如果你跑过某个模型的训练你就应该知道，save & restore 的重要性，就目前的硬件和数据集的情况下，训练一个模型是及其耗费时间的，当我们得到了训练的模型以后把他保存下来是十分重要的。 另外一方面，假如我们的模型训练了 99 epoch 还剩下最后一个 epoch 这时突然断电了，所有训练的参数都伴随着暗下去的屏幕消失在了GPU和cpu上，所以在训练的过程中我们需要保存下最近的训练参数这样即便是遭遇不测我们仍然可以从最近的参数开始，而不是从零开始。
+
+tf.train.Saver 构造器可以将save和restore操作添加到图的所有变量节点或者是某个指定集合的变量节点。Saver 对象提供了运行这些节点的方法，通过指定路径和检查点的文件夹可以实现文件的写入和读取。
+
+通过 Saver 通常恢复所有的变量都是在模型中已经完成定义的，但是我们也可以实现一个通用的恢复模型文件的程序，我们在下面会看到如何实现。
+
+TF 将生成一个二进制的文件叫做 checkpoint 它可以把tensor values 和 variable name形成一一对应的关系。
+
+#### 1. Save variable 保存变量
+
+1.1. **保存全部的变量**
+
+为保存变量首先创建一个Saver实例（使用tf.train.Saver()),利用Saver 实现对变量文件的管理。
+
+```python
+# Create some variables.
+v1 = tf.get_variable("v1", shape=[3], initializer = tf.zeros_initializer)
+v2 = tf.get_variable("v2", shape=[5], initializer = tf.zeros_initializer)
+
+inc_v1 = v1.assign(v1+1)
+dec_v2 = v2.assign(v2-1)
+
+# Add an op to initialize the variables.
+init_op = tf.global_variables_initializer()
+
+# Add ops to save and restore all the variables.
+saver = tf.train.Saver()
+
+# Later, launch the model, initialize the variables, do some work, and save the
+# variables to disk.
+with tf.Session() as sess:
+  sess.run(init_op)
+  # Do some work with the model.
+  inc_v1.op.run()
+  dec_v2.op.run()
+  # Save the variables to disk.
+  save_path = saver.save(sess, "./tmp/model.ckpt")
+  print("Model saved in path: %s" % save_path)
+```
+
+通过上面的荔枝我们可以很明白的看到保存变量的流程：
+
+- 首先创建 Saver 实例： saver = tf.train.Saver()
+- 在运行的会话的结束时，保存变量 save_path = saver.save(sess, path), 其中sess是指要保存的变量所在的会话，path是模型将要保存的路径。
+
+1.2. **恢复全部变量**
+
+既然我们能保存变量那么肯定可以恢复变量，你可以把恢复变量当作一个初始化的过程，这是这里的初始化值来源于先前保存的checkpoint文件，当然既然这是一个初始化那么我先前的初始化流程自然可以省略掉。我们接着看荔枝：
+
+```python
+tf.reset_default_graph()
+
+# Create some variables.
+v1 = tf.get_variable("v1", shape=[3])
+v2 = tf.get_variable("v2", shape=[5])
+
+# Add ops to save and restore all the variables.
+saver = tf.train.Saver()
+
+# Later, launch the model, use the saver to restore variables from disk, and
+# do some work with the model.
+with tf.Session() as sess:
+  # Restore variables from disk.
+  saver.restore(sess, "/tmp/model.ckpt")
+  print("Model restored.")
+  # Check the values of the variables
+  print("v1 : %s" % v1.eval())
+  print("v2 : %s" % v2.eval())
+```
+注意：如果你前往tmp的文件夹发现找不到 model.ckpt的实体文件不要紧张。它是为检查点创建的文件名的前缀。用户仅与前缀（而非检查点实体文件）互动。
+
+1.3. **保存与恢复部分的变量**
+
+前面的两部我们十分武断的保存和恢复了整个图中所有的变量，那么假如我们不想要这么做呢？加入我想要把一个变量a的值恢复到一个名为b的变量上？假如我训练了五层的神经元模型我想要把它加载到一个六层的神经元模型该怎么做？
+
+先看代码荔枝！：
+
+```python
+tf.reset_default_graph()
+# Create some variables.
+v1 = tf.get_variable("v1", [3], initializer = tf.zeros_initializer)
+v2 = tf.get_variable("v2", [5], initializer = tf.zeros_initializer)
+
+# Add ops to save and restore only `v2` using the name "v2"
+saver = tf.train.Saver({"v2": v2})
+
+# Use the saver object normally after that.
+with tf.Session() as sess:
+  # Initialize v1 since the saver will not.
+  v1.initializer.run()
+  saver.restore(sess, "./tmp/model.ckpt")
+
+  print("v1 : %s" % v1.eval())
+  print("v2 : %s" % v2.eval())
+```
+注意到上面的荔枝中这行代码：
+
+    saver = tf.train.Saver({"v2":v2})
+
+与前面恢复所有的 variable 不同这里我们向 tf.train.Saver 传入了一个字典，这就是我们能够加载部分变量的秘诀，字典的 key("v2") 是ckpt文件中变量保存的名字，提醒一下大家，变量保存的名字是以TF中的命名为准，所以请注意你的变量在TF中的命名是否受到命名空间或者其他的因素影响而与你计划的命名不一致， value（v2) 是将要恢复的变量的名字。<br>
+另外，可以看到我们这一次有进行初始化操作，因为我们只载入了一个变量，另外一个变量需要进行初始化。
+
+1.4. **检查ckpt文件中的变量**
+
+通过 inspect_checkpoint库可以方便高效的查看ckpt文件中的变量值，为使用这个库的方便我们可以直接将其导入为chkp:
+```python
+# import the inspect_checkpoint library
+from tensorflow.python.tools import inspect_checkpoint as chkp
+
+# print all tensors in checkpoint file
+chkp.print_tensors_in_checkpoint_file("/tmp/model.ckpt", tensor_name='', all_tensors=True)
+
+# tensor_name:  v1
+# [ 1.  1.  1.]
+# tensor_name:  v2
+# [-1. -1. -1. -1. -1.]
+
+# print only tensor v1 in checkpoint file
+chkp.print_tensors_in_checkpoint_file("/tmp/model.ckpt", tensor_name='v1', all_tensors=False)
+
+# tensor_name:  v1
+# [ 1.  1.  1.]
+
+# print only tensor v2 in checkpoint file
+chkp.print_tensors_in_checkpoint_file("/tmp/model.ckpt", tensor_name='v2', all_tensors=False)
+
+# tensor_name:  v2
+# [-1. -1. -1. -1. -1.]
+```
+
+#### 2. SaveModel 保存和加载模型
+
+首先，SaveModel和前面的SaveVariables有什么异同以及为什么要有SaveModel?
+
+SaveModel 是一个更加易于跨平台的保存模型的方式，它独立与语言，你可以通过python来训练模型但是在客户端使用Java来进行推理预测。另外如果要使用Tensorflow Serving Server 来部署模型就必须使用SaveModel格式。和SaveVariables相比，如果你打算使用SaveVaribales那么你必须显示的重新构建你的网络然后再恢复所有的Tensor元数据，但是SaveModel包含了所有的Graph结构信息，你可以直接从保存的模型中恢复，但是你必须要明白的是，这个恢复的Graph的值还是从初始化开始的，好在SaveModel中也包含了checkpoint的元数据，通过tf.train.server.restore进行恢复就可以了。
+
+想要更加详细具体的了解SaveModel,这里有两篇很棒的文章[1](https://zhuanlan.zhihu.com/p/31308381),&nbsp;&nbsp;[2](https://juejin.im/post/5bbfedd65188255c9b13d964).
+
+2.1. **简单保存你的Model**
+
+方法很简单，使用tf.save_model.simple_save函数：
+```python
+simple_save(session,
+            export_dir,
+            inputs={"x": x, "y": y},
+            outputs={"z": z})
+```
+
+2.2. **使用Python 加载 SaveModel
+
+Python 版的 SavedModel 加载器为 SavedModel 提供加载和恢复功能。load 指令需要以下信息：
+
+* 要在其中恢复图定义和变量的会话。
+* 用于标识要加载的 MetaGraphDef 的标签。
+* SavedModel 的位置（目录）。
+
+加载后，作为特定 MetaGraphDef 的一部分提供的变量、资源和签名子集将恢复到提供的会话中。
+
+```python
+export_dir = ...
+...
+with tf.Session(graph=tf.Graph()) as sess:
+  tf.saved_model.loader.load(sess, [tag_constants.TRAINING], export_dir)
+  ...
+```
+其中有个参数是tag_consatnts，一个SaveModel有多个MetaGraphDef 通过tag_constant进行标识。
+
+2.3. **SaveModel 目录结构**
+
+当您以 SavedModel 格式保存模型时，TensorFlow 会创建一个由以下子目录和文件组成的 
+
+SavedModel 目录：
+```python
+assets/
+assets.extra/
+variables/
+    variables.data-?????-of-?????
+    variables.index
+saved_model.pb|saved_model.pbtxt
+```
+其中：
+
+* assets 是包含辅助（外部）文件（如词汇表）的子文件夹。资源被复制到 SavedModel 的位置，并且可以在加载特定的 MetaGraphDef 时被读取。
+* assets.extra 是一个子文件夹，其中较高级别的库和用户可以添加自己的资源，这些资源与模型共存，但不会被图加载。此子文件夹不由 SavedModel 库管理。
+* variables 是包含 tf.train.Saver 的输出的子文件夹。checkpont文件所在地。
+* saved_model.pb 或 saved_model.pbtxt 是 SavedModel 协议缓冲区。它包含作为 MetaGraphDef 协议缓冲区的图定义。
+
+单个 SavedModel 可以表示多个图。在这种情况下，SavedModel 中所有图共享一组检查点（变量）和资源。例如，下图显示了一个包含三个 MetaGraphDef 的 SavedModel，它们三个都共享同一组检查点和资源：
+
+<br>
+**结束语**：本来一开始只是想要简单记录下一TF底层API的知识，结果没想到写了这么长,到这里基本上告一段落，后面还有一个比较有趣的autograph 有时间在重新整理一篇文章，希望大家多多指教！
 
 
 参考：
 
 [tfensorflow官方文档](https://www.tensorflow.org/guide/)
 
-**HAPPY CODING!**
+[张宸 Tensorflow框架实现中的“三”种图](https://zhuanlan.zhihu.com/p/31308381)
+
+[云水木石 Tensorflow SavedModel模型的保存与加载](https://juejin.im/post/5bbfedd65188255c9b13d964)
+
+
+
+**HAPPY HACKING!**
