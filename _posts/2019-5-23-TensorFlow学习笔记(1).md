@@ -1,6 +1,6 @@
 ---
 layout:     post
-title:      2019-5-23-TensorFlow学习笔记(1)
+title:      TensorFlow学习笔记(1)
 subtitle:   底层API学习
 date:       2019-05-23
 author:     Colin
@@ -476,9 +476,9 @@ variable 可以通过tf.Variable类进行操作，通过tf.variable的操作可�
     
     如果某一个变量的值依赖于另一个变量，由于global_variables_initializer 不会指定初始化的顺序，那么在初始化时就会出现错误。这种情况下，当我们要使用一个变量的值依赖于另一个变量的值时，我们一般情况下可以
 
-       a. 先初始化被引用的变量然后再初始化引用变量
+    a. 先初始化被引用的变量然后再初始化引用变量
 
-       b. 引用变量时，使用variable。initialized_value() 而不是直接引用。
+    b. 引用变量时，使用variable。initialized_value() 而不是直接引用。
 
         v = tf.get_variable("v", shape=(), initializer=tf.zeros_initializer())
         w = tf.get_variable("w", initializer=v.initialized_value() + 1)
@@ -613,7 +613,7 @@ TensorFlow 使用数据流图将计算表示为独立的指令之间的依赖关
 
 如果您计划直接使用低级别编程模型，本指南将是您最实用的参考资源。较高阶的 API（例如 tf.estimator.Estimator 和 Keras）会向最终用户隐去图和会话的细节内容。
 
-你可以把数据流图看作是一个巨大的表达式，这个表达式除了加减乘除幂次方等基本运算法则还包括了卷积，求梯度，优化变量等运算法则，甚至你可以定义自己的运算法则，最后当我们运行这个图的时候类似于我们按下计算机的等号，我们就可以得到最后我们要的参数的结果。
+你可以把数据流图看作是一个巨大的表达式，这个表达式除了加减乘除幂次方等基本运算法则还包括了卷积，求梯度，优化变量等运算法则，甚至你可以定义自己的运算法则，最后当我们运行这个图的时候类似于我们按下计算器的等号，我们就可以得到最后我们要的参数的结果。
 
 <center>  
     <img src="..\..\..\..\img\article\tensors_flowing.gif">
@@ -721,6 +721,213 @@ b = tf.get_variable("weights", shape=(3,3)) # do u want to reuse the variable or
 - <DEVICE_TYPE\>  是一种注册设备类型（例如 GPU 或 CPU）。
 - <TASK_INDEX\>  是一个非负整数，表示名为 <JOB_NAME> 的作业中的任务的索引。请参阅 tf.train.ClusterSpec 了解作业和任务的说明。
 - <DEVICE_INDEX\>  是一个非负整数，表示设备索引，例如用于区分同一进程中使用的不同 GPU 设备。
+
+您无需指定设备规范的每个部分。例如，如果您在具有单个 GPU 的单机器配置中运行，您可以使用 tf.device 将一些操作固定到 CPU 和 GPU 上：
+```python
+# Operations created outside either context will run on the "best possible"
+# device. For example, if you have a GPU and a CPU available, and the operation
+# has a GPU implementation, TensorFlow will choose the GPU.
+weights = tf.random_normal(...)
+
+with tf.device("/device:CPU:0"):
+  # Operations created in this context will be pinned to the CPU.
+  img = tf.decode_jpeg(tf.read_file("img.jpg"))
+
+with tf.device("/device:GPU:0"):
+  # Operations created in this context will be pinned to the GPU.
+  result = tf.matmul(weights, img)
+```
+
+如果您在典型的分布式配置中部署 TensorFlow，您可以指定作业名称和任务 ID，以便将变量放到参数服务器作业 ("/job:ps") 中的任务上，并将其他操作放置到工作器作业 ("/job:worker") 中的任务上：
+
+```python
+with tf.device(tf.train.replica_device_setter(ps_tasks=3)):
+  # tf.Variable objects are, by default, placed on tasks in "/job:ps" in a
+  # round-robin fashion.
+  w_0 = tf.Variable(...)  # placed on "/job:ps/task:0"
+  b_0 = tf.Variable(...)  # placed on "/job:ps/task:1"
+  w_1 = tf.Variable(...)  # placed on "/job:ps/task:2"
+  b_1 = tf.Variable(...)  # placed on "/job:ps/task:0"
+
+  input_data = tf.placeholder(tf.float32)     # placed on "/job:worker"
+  layer_0 = tf.matmul(input_data, w_0) + b_0  # placed on "/job:worker"
+  layer_1 = tf.matmul(layer_0, w_1) + b_1     # placed on "/job:worker"
+```
+
+#### 7. Tensor_like 对象
+
+许多 TensorFlow 操作都会接受一个或多个 tf.Tensor 对象作为参数。例如，tf.matmul 接受两个 tf.Tensor 对象，tf.add_n 接受一个具有 n 个 tf.Tensor 对象的列表。为了方便起见，这些函数将接受类张量对象来取代 tf.Tensor，并将它隐式转换为 tf.Tensor（通过 tf.convert_to_tensor 方法）。类张量对象包括以下类型的元素：
+
+- tf.Tensor
+- tf.Variable
+- numpy.ndarray
+- list
+- python 标量类型 （bool、float、int、str）
+
+###### 注意：默认情况下，每次您使用同一个类张量对象时，TensorFlow 将创建新的 tf.Tensor。如果类张量对象很大（例如包含一组训练样本的 numpy.ndarray），且您多次使用该对象，则可能会耗尽内存。要避免出现此问题，请在类张量对象上手动调用 tf.convert_to_tensor 一次，并使用返回的 tf.Tensor。
+
+#### 8. 在 tf.Session 中执行图
+
+TF使用 tf.Session 类来表示图运行的客户端程序。 tf.Session 对象使我们可以访问本地机器中的设备和使用远程设备进行运算图。它还可以缓存关于Graph的信息，是代码可以高效的运行在同一计算中。
+
+创建 tf.Session: 
+```python
+# Create a default in-process session.
+with tf.Session() as sess:
+  # ...
+
+# Create a remote session.
+with tf.Session("grpc://example.org:2222"):
+  # ...
+```
+由于 tf.Session 与物理资源想关联，所以通常在 with 代码块中创建，方便在图运算完成之时自动的关闭会话并释放资源。当然也可以不使用with代码块，但在运算结束时必须显示的调用tf.Session.close 以便释放资源。
+
+tf.Session.init 接受三个可选参数：
+
+- target。 如果将此参数留空（默认设置），会话将仅使用本地机器中的设备。但是，您也可以指定 grpc:// 网址，以便指定 TensorFlow 服务器的地址，这使得会话可以访问该服务器控制的机器上的所有设备。请参阅 tf.train.Server 以详细了解如何创建 TensorFlow 服务器。例如，在常见的图间复制配置中，tf.Session 连接到 tf.train.Server 的流程与客户端相同。分布式 TensorFlow 部署指南介绍了其他常见情形。
+
+- graph。 默认情况下，新的 tf.Session 将绑定到当前的默认图，并且仅能够在当前的默认图中运行操作。如果您在程序中使用了多个图（更多详情请参阅使用多个图进行编程），则可以在构建会话时指定明确的 tf.Graph。
+
+- config。 此参数允许您指定一个控制会话行为的 tf.ConfigProto。例如，部分配置选项包括：
+
+    - allow_soft_placement。将此参数设置为 True 可启用“软”设备放置算法，该算法会忽略尝试将仅限 CPU 的操作分配到 GPU 设备上的 tf.device 注解，并将这些操作放置到 CPU 上。
+
+    - cluster_def。使用分布式 TensorFlow 时，此选项允许您指定要在计算中使用的机器，并提供作业名称、任务索引和网络地址之间的映射。详情请参阅 tf.train.ClusterSpec.as_cluster_def。
+
+    - graph_options.optimizer_options。在执行图之前使您能够控制 TensorFlow 对图实施的优化。
+
+    - gpu_options.allow_growth。将此参数设置为 True 可更改 GPU 内存分配器，使该分配器逐渐增加分配的内存量，而不是在启动时分配掉大多数内存。
+
+#### 9. 使用 tf.Session.run 执行操作
+
+按下计算机的等号！
+
+做到这一步基本上相当于我们已经作完了大部分的准备工作现在万事俱备只欠东风，使用 tf.Session.run 方法是运行 tf.Opeation 或者评估 tf.Tensor 的主要机制。
+
+tf.Session.run 要求指定一组 fetch(这个fetch我认为就是要计算的图的边缘最靠近的那个operation，可以翻译为 计算子 ？)
+，这些fetch可以返回确定的值，并且可能是tf.Operation、tf.Tensor 或者是Tensor_like 类型。 例如tf.Variable就是一个fetch。 这些 fetch 指明了要执行哪些子图来获得结果，子图包含了所有的节点运算过程。看一个荔枝：
+
+```python
+x = tf.constant([[37.0, -23.0], [1.0, 4.0]])
+w = tf.Variable(tf.random_uniform([2, 2]))
+y = tf.matmul(x, w)
+y = tf.matmul(y, w)   # use y as the input of the y 
+output = tf.nn.softmax(y)
+init_op = w.initializer
+
+with tf.Session() as sess:
+  # Run the initializer on `w`.
+  sess.run(init_op)
+
+  # Evaluate `output`. `sess.run(output)` will return a NumPy array containing
+  # the result of the computation.
+  print(sess.run(output))
+
+  # Evaluate `y` and `output`. Note that `y` will only be computed once, and its
+  # result used both to return `y_val` and as an input to the `tf.nn.softmax()`
+  # op. Both `y_val` and `output_val` will be NumPy arrays.
+  y_val, output_val = sess.run([y, output])
+
+```
+
+在上面的荔枝中特别的写了一行：
+
+    y = tf.matmul(y,w)
+
+我的目的是，想使用y作为这个操作子的输入，我们可以发现上面的代码 output 执行了两次，但是我们得到的output却是相同的，这与我的预期不一样，我的预想是这样：
+
+```python
+x = 1
+y = x + 1
+y = y + 1 #第一次执行
+print(y)  # >>> 3
+y = y + 1 #第二次执行
+print(y)  # >>> 4
+```
+
+为什么在TF程序里面得到的结果是相同的呢？
+必须要注意到每次通过 tf.Session.run 都是将 fetch 的子图完全从头开始运行一遍，上面的荔枝可以看到，通过 sess.run(init_op) 使得w获得了初始化，在每次运行 output 这个节点的时候都是从 w 开始数据通过graph逐步传到了 output 所以与上一次的运算是毫无关系的。 
+
+另一方面也必须注意到，在同一个 tf.Session.run 里面的所运行的图是同一性的，比如在上面的荔枝里面我们同时在一个 tf.Session.run里面运行了 y 和 output 但是实际上 y 只被运行了一次，他的结果一方面用来返回给 y_val 另一个方面被用于进一步的计算 output。
+
+tf.Session.run 也可以接受 feed 字典，通常是在使用 tf.placeholder 时用于替代其值。这和我们在写一个代数表达式时设立的某些未知数x,a,b,c等类似，我们先用一个代数符号替代具体的计算值，等最后开始计算表达式时在把值带入到表达式中。 feed 字典接受的数据类型可以是 Python 标量、列表、Numpy数组。例如：
+
+```python
+# Define a placeholder that expects a vector of three floating-point values,
+# and a computation that depends on it.
+x = tf.placeholder(tf.float32, shape=[3])
+y = tf.square(x)
+
+with tf.Session() as sess:
+  # Feeding a value changes the result that is returned when you evaluate `y`.
+  print(sess.run(y, {x: [1.0, 2.0, 3.0]}))  # => "[1.0, 4.0, 9.0]"
+  print(sess.run(y, {x: [0.0, 0.0, 5.0]}))  # => "[0.0, 0.0, 25.0]"
+
+  # Raises <a href="../api_docs/python/tf/errors/InvalidArgumentError"><code>tf.errors.InvalidArgumentError</code></a>, because you must feed a value for
+  # a `tf.placeholder()` when evaluating a tensor that depends on it.
+  sess.run(y)
+
+  # Raises `ValueError`, because the shape of `37.0` does not match the shape
+  # of placeholder `x`.
+  sess.run(y, {x: 37.0})
+
+```
+
+可以看到，feed 所接受的变量一定是和 tf.placeholder 的数据维度是一致的否者就会报错。
+
+tf.Session.run 也接受可选的 options 参数（允许您指定与调用有关的选项）和可选的 run_metadata 参数（允许您收集与执行有关的元数据）。例如，您可以同时使用这些选项来收集与执行有关的跟踪信息：
+
+```python
+y = tf.matmul([[37.0, -23.0], [1.0, 4.0]], tf.random_uniform([2, 2]))
+
+with tf.Session() as sess:
+  # Define options for the `sess.run()` call.
+  options = tf.RunOptions()
+  options.output_partition_graphs = True
+  options.trace_level = tf.RunOptions.FULL_TRACE
+
+  # Define a container for the returned metadata.
+  metadata = tf.RunMetadata()
+
+  sess.run(y, options=options, run_metadata=metadata)
+
+  # Print the subgraphs that executed on each device.
+  print(metadata.partition_graphs)
+
+  # Print the timings of each operation that executed.
+  print(metadata.step_stats)
+  ```
+
+#### 10. 可视化你的图  
+
+TF提供了种可视化计算图的模块 TensorBoard 的一个组件，可以在浏览器中可视化图的结构。 创建可视化图最简单的办法是传递 tf.Graph 到 tf.summary.FileWriter ：
+
+```python
+# Build your graph.
+x = tf.constant([[37.0, -23.0], [1.0, 4.0]])
+w = tf.Variable(tf.random_uniform([2, 2]))
+y = tf.matmul(x, w)
+# ...
+loss = ...
+train_op = tf.train.AdagradOptimizer(0.01).minimize(loss)
+
+with tf.Session() as sess:
+  # `sess.graph` provides access to the graph used in a <a href="../api_docs/python/tf/Session"><code>tf.Session</code></a>.
+  writer = tf.summary.FileWriter("/tmp/log/...", sess.graph)
+
+  # Perform your computation...
+  for i in range(1000):
+    sess.run(train_op)
+    # ...
+
+  writer.close() 
+```
+
+随后，您可以在 tensorboard 中打开日志并转到“图”标签，查看图结构的概要可视化图表。请注意，典型的 TensorFlow 图（尤其是具有自动计算的梯度的训练图）包含的节点太多，无法一次性完成直观展示。图可视化工具使用名称范围来将相关指令分组到“超级”节点中。您可以点击任意超级节点上的橙色“+”按钮以展开内部的子图。
+
+更多的详细可视化操作参考 [TensorBoard](https://www.tensorflow.org/guide/summaries_and_tensorboard)
+
+#### 11. 使用多个图进行编程
 
 
 
