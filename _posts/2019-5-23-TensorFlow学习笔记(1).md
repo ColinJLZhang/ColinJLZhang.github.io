@@ -558,7 +558,7 @@ TensorFlow 支持两种共享变量的方式：
             strides=[1, 1, 1, 1], padding='SAME')
         return tf.nn.relu(conv + biases)
 ```
-此函数使用短名称 weights 和 biases，这有利于清晰区分二者。然而，在真实模型中，我们需要很多此类卷积层，而且重复调用此函数将不起会报错，因为在 tf.GraphKeys.TRAINABLE_VARIABLES 中已经存在了改变了，无法重新创建可以相同的变量：
+此函数使用短名称 weights 和 biases，这有利于清晰区分二者。然而，在真实模型中，我们需要很多次使用卷积层，但是重复调用此函数将不起会报错，因为在 tf.GraphKeys.TRAINABLE_VARIABLES 中已经存在了，无法重新创建名字相同的变量：
 
 ```python
     input1 = tf.random_normal([1,10,10,32])
