@@ -1,0 +1,162 @@
+DGX-1基本介绍：
+ 
+使用说明：
+由于只有一台DGX-1，为了能够让多个用户能够同时使用而互不干扰，本DGX-1里安装的训练用软件都是通过docker安装的，且已经编译好。有需要使用时DGX-1的同事，建议添加并使用个人帐号。
+由于默认安装完docker后，普通用户无法查看管理员用户创建的docker镜像，为了让多个普通用户能够正常使用，需要创建一个docker用户组，将用户加入该组中。
+ 
+1、免sudo使用docker方法：（管理员操作）
+1、	新加用户：
+A、	添加docker用户组
+sudo groupadd docker
+B、	添加用户
+sudo adduser l00290231		#此命令会自动创建home下用户目录
+C、	将用户(l00290231)加入docker用户组：
+sudo gpasswd –a l00290231 docker
+D、	修改用户密码 
+sudo passwd l00290231
+E、	添加用户目录
+cd /home 					#进入home目录
+sudo mkdir l00290231		#创建用户目录
+F、	sudo chmod 777 –R l00290231	#赋权 
+–R参数是递归处理目录下的所有文件以及子文件夹，重要，否则后续进入docker容器后文件操作权限问题
+sudo chsh -s /bin/bash l00290231	#指定login shell,默认的是/bin/sh,切换到/bin/bash。不切换使用putty连接无法使用上下键切换命令
+2、	重启docker服务：
+sudo service docker restart
+3、	切换个人用户：
+su l00290231
+ 
+2、docker基本操作：
+分类：
+•	容器生命周期管理 — docker [run|start|stop|restart|kill|rm|pause|unpause]
+•	容器操作运维 — docker [ps|inspect|top|attach|events|logs|wait|export|port]
+•	容器rootfs命令 — docker [commit|cp|diff]
+•	镜像仓库 — docker [login|pull|push|search]
+•	本地镜像管理 — docker [images|rmi|tag|build|history|save|import]
+•	其他命令 — docker [info|version]
+
+1、	查看docker中镜像：
+docker images
+ 
+2、	查看当前运行的容器：
+docker ps
+ 
+3、	查看所有容器（包括未运行的）
+docker ps -a
+4、	运行docker镜像（d23e22fb5800为tensorflow镜像的ID），并挂载用户目录到容器中
+nvidia-docker run -it -–name ljf_tensorflow -v /home/l00290231:/data d23e22fb5800 /bin/bash
+nvidia-docker run -it -–name ljf_caffe -v /home/l00290231:/data nvcr.io/nvidia/caffe:17.03 /bin/bash
+注：由于DGX-1安装的是定制版docker：nvidia-docker，它的基本功能与docker一致，除了几个简单命令外，大部分docker的命令建议使用nvidia-docker命令
+以上命令会开启一个容器来运行tensorflow镜像，并进入容器所在bash环境；
+-v表示将用户目录/home/l00290231挂载到容器空间里的/data目录下，“:”分隔，如下图：
+ 
+-t 表示让Docker分配一个伪终端并绑定到容器的标准输入上
+-i 表示提供交互输入，一般与”-t”一起使用，如果只提供”-I”选项，则容器启动后是无法退出的
+-d表示以守护方式打开（即非交互模式，后台运行）
+--name $containername双横杠，给运行的容器增加一个自定义名称，便于区分，推荐加上 
+-rm 退出容器时自动清理容器，学习时建议加上， 避免创建很多不用的僵尸容器
+-p 将容器的端口映射给宿主机
+
+nvidia-docker运行tensorflow后，就可以像普通环境一样使用tensorflow了，如先运行python:
+ 
+注：在容器内如果没有挂载目录文件读写权限，需要使用管理员用户给当前用户目录更改权限。
+ 
+5、	退出镜像回到普通终端环境 Ctrl+D 快捷键
+6、	终止某个镜像的运行，参数为容器ID
+docker kill 9260f6a7220d  或者
+docker stop 9260f6a7220d
+7、	启动容器
+docker start 9260f6a7220d
+ 
+8、	如果因意外断连或者其他原因退出了容器，但镜像还在运行，可通过docker exec命令重新进入
+docker exec -it 091c29deca04 /bin/bash	#或
+docker attach 091c29deca04			# attach命令需要容器已经运行才能进入
+ 
+9、	重启容器：
+docker restart 091c29deca04
+10、	保存修改的容器到一个新的镜像
+docker commit -p 6c5a3b2b0d40 tensorflow_ljf_1.0
+ 
+11、	备份Docker镜像到本地 
+docker save -o /home/kirinai/dockers_backup/nvidia-tensorflow.tar nvcr.io/nvidia/tensorflow
+12、	恢复备份的镜像
+docker load –i /home/kirinai/dockers_backup/nvidia-tensorflow.tar
+13、	停止当前运行的容器
+docker stop 6c5a3b2b0d40
+ 
+  (这是另一个用户在其他终端运行的容器)
+14、	删除容器（必须是停止状态的才可以删除）
+docker rm 6c5a3b2b0d40
+docker rm ‘docker ps –a -q’		#批量删除所有已停止的容器
+15、	删除镜像（删除镜像前，要先把依赖于这个镜像的容器删除）
+docker rmi tensorflow_ljf-1.0
+16、	一张图看懂容器的主要操作
+ 
+3、新机器NVIDIA-Docker的安装部署
+1、安装NVIDIA-docker，NVIDIA-Docker安装文件存放于DGX-1的/home/kirinai/install_pkg/nvidia-docker_1.0.1-1_amd64.deb,需要时可从此拷贝
+dpkg –i nvidia-docker_1.0.1-1_amd64.deb
+2、加载备份的镜像，已有备份存放于DGX-1的/home/kirinai/dockers_backup，
+docker load /home/kirinai/dockers_backup/nvidia-tensorflow.tar
+或用初始备份文件/home/kirinai/install_pkg/docker_images_17.03
+docker load /home/kirinai/install_pkg/nvidia.caffe.17.03.tar.bz2
+
+
+其他命令：
+1、	文件信息：
+df –h				#查看分区大小
+du –h $path		#查看目录大小及子层文件大小
+		----max-depth	#指定子层级深度
+ls –ls $path		#查看目录权限信息
+ls –la $path		#查看目录权限信息（包含隐藏文件）
+cat a.txt			#查看文件内容
+
+2、	用户、组操作：
+useradd $user 	#创建user用户
+adduser $user 	#创建user用户并在/home下建立同名文件夹，并提示输入密码
+useradd –m $user #同adduser $user命令
+
+userdel $user 	#删除用户
+userdel –f $user	#删除用户及用户主目录
+deluser $user 	#删除用户
+		--remove-home 	#删除用户主目录和邮箱
+		--remove-all-files 	#删除用户拥有的所有文件
+deluser –group $group #删除用户组
+deluser $user $group 	#将用户从组中删除
+delgroup $group 	#删除用户组
+cat /etc/group		#查看所有用户
+cat /etc/group		#查看系统用户组
+sudo usermod –a –G sudo $user	#为用户添加sudo权限
+
+
+3、	权限操作：
+chmod [–R] [xxx] $path #数字设定法修改权限
+		-R		#递归处理所有子层文件与目录
+		xxx		#xxx三个数字，分别代表u(所有者)、g(组用户)、o(其他用户)对该目录拥有的权限，
+#不加默认为a(所有用户)
+				#x 为四种权限值求和 0:无权限 1:可执行权限(x) 2:可写权限(w) 4:可读权限(r)
+				#如 760 表示所有者拥有rwx权限 4+2+1
+							同组其他用户拥有rw 4+2
+							其他用户无权限访问
+		path		#文件/目录名，可组合为以空格分开的文件/目录列表，支持通配符
+chmod [who] [+-=] [rwx] $path	#文字设定法修改权限
+		who		# 取值u/g/o/a 用户
+		+-=		# 操作符 分别为添加权限、取消权限、赋予并取消其他权限
+		rwx		# 同数字设定法参数
+
+4、	系统配置
+free –m		#查看内存大小 –m:单位MB –g:单位GB
+df –h			#查看各分区大小及使用情况
+cat /proc/cpuinfo	#查看CPU信息
+nvidia-smi	#查看NVIDIA显卡信息
+/bin/hostname		#查看主机名
+
+5、	网络配置
+cat /etc/network/interfaces			#查看网络配置信息
+sudo vim /etc/network/interfaces		#编辑网络配置，请勿随意改动DGX-1网络配置
+auto em1
+iface em1 inet static 
+address 10.121.87.209
+netmask 255.255.252.0
+gateway 10.121.84.1
+dns-nameservers 10.129.0.84
+sudo vim /etc/resolv.conf			#单独配置DNS:nameservers 10.129.0.84，多个分行写
+sudo /etc/init.d/networking restart	#使当前网络配置生效
